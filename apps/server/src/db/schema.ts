@@ -490,6 +490,8 @@ export const settings = pgTable('settings', {
   trustProxy: boolean('trust_proxy').notNull().default(false), // Trust X-Forwarded-* headers from reverse proxy
   // Mobile access
   mobileEnabled: boolean('mobile_enabled').notNull().default(false),
+  // Authentication
+  jellyfinAuthEnabled: boolean('jellyfin_auth_enabled').notNull().default(false),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

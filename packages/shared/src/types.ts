@@ -466,6 +466,8 @@ export interface Settings {
   trustProxy: boolean;
   // Mobile access
   mobileEnabled: boolean;
+  // Authentication
+  jellyfinAuthEnabled: boolean;
 }
 
 // Tautulli import types

@@ -225,6 +225,7 @@ class ApiClient {
       needsSetup: boolean;
       hasServers: boolean;
       hasPasswordAuth: boolean;
+      jellyfinAuthEnabled: boolean;
     }>('/setup/status'),
   };
 
@@ -290,6 +291,13 @@ class ApiClient {
     // Add an additional Plex server (authenticated - owner only)
     addPlexServer: (data: { serverUri: string; serverName: string; clientIdentifier: string }) =>
       this.request<{ server: Server; usersAdded: number; librariesSynced: number }>('/auth/plex/add-server', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    // Jellyfin login with username/password
+    loginJellyfin: (data: { username: string; password: string; serverId?: string }) =>
+      this.request<{ accessToken: string; refreshToken: string; user: User }>('/auth/jellyfin/login', {
         method: 'POST',
         body: JSON.stringify(data),
       }),

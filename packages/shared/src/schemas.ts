@@ -12,10 +12,22 @@ export const paginationSchema = z.object({
 });
 
 // Auth schemas
-export const loginSchema = z.object({
-  serverType: z.enum(['plex', 'jellyfin', 'emby']),
-  returnUrl: z.url().optional(),
-});
+export const loginSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('local'),
+    email: z.string().email(),
+    password: z.string().min(1),
+  }),
+  z.object({
+    type: z.literal('plex'),
+  }),
+  z.object({
+    type: z.literal('jellyfin'),
+    username: z.string().min(1),
+    password: z.string().min(1),
+    serverId: z.string().uuid().optional(),
+  }),
+]);
 
 export const callbackSchema = z.object({
   code: z.string().optional(),
@@ -217,6 +229,8 @@ export const updateSettingsSchema = z.object({
   externalUrl: z.url().nullable().optional(),
   basePath: z.string().max(100).optional(),
   trustProxy: z.boolean().optional(),
+  // Authentication
+  jellyfinAuthEnabled: z.boolean().optional(),
 });
 
 // Tautulli import schemas

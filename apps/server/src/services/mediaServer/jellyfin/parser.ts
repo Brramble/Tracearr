@@ -452,6 +452,7 @@ export function parseActivityLogResponse(data: unknown): JellyfinActivityEntry[]
 export interface JellyfinAuthResult {
   id: string;
   username: string;
+  email: string | null;
   token: string;
   serverId: string;
   isAdmin: boolean;
@@ -467,6 +468,7 @@ export function parseAuthResponse(data: Record<string, unknown>): JellyfinAuthRe
   return {
     id: parseString(user.Id),
     username: parseString(user.Name),
+    email: user.Email ? parseString(user.Email) : null,
     token: parseString(data.AccessToken),
     serverId: parseString(data.ServerId),
     isAdmin: parseBoolean(policy.IsAdministrator),

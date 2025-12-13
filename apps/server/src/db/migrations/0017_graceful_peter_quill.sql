@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "jellyfin_auth_enabled" boolean DEFAULT false NOT NULL;

@@ -847,6 +847,20 @@ function AccessSettings() {
             onCheckedChange={(checked) => { handleToggle('allowGuestAccess', checked); }}
           />
         </div>
+
+        <div className="flex items-center justify-between">
+          <div>
+            <Label className="text-base">Enable Jellyfin Authentication</Label>
+            <p className="text-sm text-muted-foreground">
+              Allow Jellyfin server administrators to log in with their Jellyfin credentials
+            </p>
+          </div>
+          <Switch
+            checked={settings?.jellyfinAuthEnabled ?? false}
+            onCheckedChange={(checked) => { handleToggle('jellyfinAuthEnabled', checked); }}
+          />
+        </div>
+
         <div className="rounded-lg bg-muted/50 p-4">
           <p className="text-sm text-muted-foreground">
             <strong>Note:</strong> In v1, Tracearr only supports single-owner access. Even with

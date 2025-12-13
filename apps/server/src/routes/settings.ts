@@ -64,6 +64,7 @@ export const settingsRoutes: FastifyPluginAsync = async (app) => {
         basePath: row.basePath,
         trustProxy: row.trustProxy,
         mobileEnabled: row.mobileEnabled,
+        jellyfinAuthEnabled: row.jellyfinAuthEnabled,
       };
 
       return result;
@@ -103,6 +104,7 @@ export const settingsRoutes: FastifyPluginAsync = async (app) => {
         externalUrl: string | null;
         basePath: string;
         trustProxy: boolean;
+        jellyfinAuthEnabled: boolean;
         updatedAt: Date;
       }> = {
         updatedAt: new Date(),
@@ -164,6 +166,10 @@ export const settingsRoutes: FastifyPluginAsync = async (app) => {
         updateData.trustProxy = body.data.trustProxy;
       }
 
+      if (body.data.jellyfinAuthEnabled !== undefined) {
+        updateData.jellyfinAuthEnabled = body.data.jellyfinAuthEnabled;
+      }
+
       // Ensure settings row exists
       const existing = await db
         .select()
@@ -213,6 +219,7 @@ export const settingsRoutes: FastifyPluginAsync = async (app) => {
         basePath: row.basePath,
         trustProxy: row.trustProxy,
         mobileEnabled: row.mobileEnabled,
+        jellyfinAuthEnabled: row.jellyfinAuthEnabled,
       };
 
       return result;

@@ -12,9 +12,16 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { api, tokenStorage, type PlexServerInfo } from '@/lib/api';
+import { api, tokenStorage, type PlexServerInfo, type Server, type Settings } from '@/lib/api';
 import { LogoIcon } from '@/components/brand/Logo';
 import { PlexServerSelector } from '@/components/auth/PlexServerSelector';
 
@@ -48,6 +55,15 @@ export function Login() {
   const [password, setPassword] = useState('');
   const [email, setEmail] = useState('');
 
+  // Jellyfin auth state
+  const [jellyfinLoading, setJellyfinLoading] = useState(false);
+  const [jellyfinUsername, setJellyfinUsername] = useState('');
+  const [jellyfinPassword, setJellyfinPassword] = useState('');
+  const [jellyfinServers, setJellyfinServers] = useState<Server[]>([]);
+  const [selectedJellyfinServer, setSelectedJellyfinServer] = useState<string>('');
+  const [jellyfinAuthEnabled, setJellyfinAuthEnabled] = useState(false);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+
   // Check setup status on mount with retry logic for server restarts
   useEffect(() => {
     async function checkSetup() {
@@ -62,6 +78,7 @@ export function Login() {
           const status = await api.setup.status();
           setNeedsSetup(status.needsSetup);
           setHasPasswordAuth(status.hasPasswordAuth);
+          setJellyfinAuthEnabled(status.jellyfinAuthEnabled ?? false);
           setSetupLoading(false);
           return; // Success - exit retry loop
         } catch {
@@ -77,6 +94,43 @@ export function Login() {
     }
     void checkSetup();
   }, []);
+
+  // Fetch Jellyfin servers after setup check
+  useEffect(() => {
+    async function fetchJellyfinServers() {
+      if (setupLoading || needsSetup) {
+        // Don't fetch during setup or initial loading
+        setSettingsLoaded(true);
+        return;
+      }
+
+      try {
+        // Fetch servers list (public endpoint, no auth needed)
+        const serversResult = await api.servers.list().catch(() => []);
+        const jellyfinServersList = serversResult.filter((s: Server) => s.type === 'jellyfin');
+        setJellyfinServers(jellyfinServersList);
+
+        // Auto-select if only one Jellyfin server
+        if (jellyfinServersList.length === 1) {
+          setSelectedJellyfinServer(jellyfinServersList[0]!.id);
+        }
+
+        console.log('Jellyfin config:', {
+          authEnabled: jellyfinAuthEnabled,
+          serversCount: jellyfinServersList.length,
+          servers: jellyfinServersList,
+          needsSetup,
+          shouldShow: !needsSetup && jellyfinAuthEnabled && jellyfinServersList.length > 0,
+        });
+      } catch {
+        // Silently fail - not critical for login page
+      } finally {
+        setSettingsLoaded(true);
+      }
+    }
+
+    void fetchJellyfinServers();
+  }, [setupLoading, needsSetup, jellyfinAuthEnabled]);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -239,6 +293,18 @@ export function Login() {
   // Handle local login
   const handleLocalLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('LOCAL login handler called with:', { email: email.trim(), hasPassword: !!password });
+    
+    // Validate fields
+    if (!email.trim() || !password) {
+      toast({
+        title: 'Validation error',
+        description: 'Email and password are required',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     setLocalLoading(true);
 
     try {
@@ -264,8 +330,42 @@ export function Login() {
     }
   };
 
+  // Handle Jellyfin login
+  const handleJellyfinLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    console.log('Jellyfin login handler called with:', { 
+      username: jellyfinUsername.trim(), 
+      serverCount: jellyfinServers.length,
+      serverId: jellyfinServers.length > 1 ? selectedJellyfinServer : undefined 
+    });
+    setJellyfinLoading(true);
+
+    try {
+      const result = await api.auth.loginJellyfin({
+        username: jellyfinUsername.trim(),
+        password: jellyfinPassword,
+        serverId: jellyfinServers.length > 1 ? selectedJellyfinServer : undefined,
+      });
+
+      if (result.accessToken && result.refreshToken) {
+        tokenStorage.setTokens(result.accessToken, result.refreshToken);
+        void refetch();
+        toast({ title: 'Success', description: 'Logged in with Jellyfin!' });
+        void navigate('/');
+      }
+    } catch (error) {
+      toast({
+        title: 'Jellyfin login failed',
+        description: error instanceof Error ? error.message : 'Invalid credentials or insufficient permissions',
+        variant: 'destructive',
+      });
+    } finally {
+      setJellyfinLoading(false);
+    }
+  };
+
   // Show loading while checking auth/setup status
-  if (authLoading || setupLoading) {
+  if (authLoading || setupLoading || !settingsLoaded) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4">
         <LogoIcon className="h-16 w-16 animate-pulse" />
@@ -357,6 +457,7 @@ export function Login() {
             <>
               {/* Plex Login Button - Always Available */}
               <Button
+                type="button"
                 className={`w-full ${PLEX_COLOR} text-white`}
                 onClick={handlePlexLogin}
               >
@@ -364,8 +465,66 @@ export function Login() {
                 {needsSetup ? 'Sign up with Plex' : 'Sign in with Plex'}
               </Button>
 
-              {/* Divider - Show if password auth is available OR during setup */}
-              {(hasPasswordAuth || needsSetup) && (
+              {/* Jellyfin Login - Show only when enabled and servers exist */}
+              {!needsSetup && jellyfinAuthEnabled && jellyfinServers.length > 0 && (
+                <form onSubmit={handleJellyfinLogin} className="space-y-4 border-2 border-[#00A4DC] rounded-lg p-4">
+                  <div className="text-sm font-semibold text-[#00A4DC] mb-2">Jellyfin Login</div>
+                  <div className="space-y-2">
+                    <Label htmlFor="jellyfin-username">Jellyfin Username</Label>
+                    <Input
+                      id="jellyfin-username"
+                      type="text"
+                      placeholder="Your Jellyfin username"
+                      value={jellyfinUsername}
+                      onChange={(e) => setJellyfinUsername(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="jellyfin-password">Jellyfin Password</Label>
+                    <Input
+                      id="jellyfin-password"
+                      type="password"
+                      placeholder="Your Jellyfin password"
+                      value={jellyfinPassword}
+                      onChange={(e) => setJellyfinPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+                  {jellyfinServers.length > 1 && (
+                    <div className="space-y-2">
+                      <Label htmlFor="jellyfin-server">Jellyfin Server</Label>
+                      <Select value={selectedJellyfinServer} onValueChange={setSelectedJellyfinServer} required>
+                        <SelectTrigger id="jellyfin-server">
+                          <SelectValue placeholder="Select a server" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {jellyfinServers.map((server) => (
+                            <SelectItem key={server.id} value={server.id}>
+                              {server.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  <Button
+                    type="submit"
+                    className="w-full bg-[#00A4DC] hover:bg-[#0080B8] text-white"
+                    disabled={jellyfinLoading || (jellyfinServers.length > 1 && !selectedJellyfinServer)}
+                  >
+                    {jellyfinLoading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <MediaServerIcon type="jellyfin" className="mr-2 h-4 w-4" />
+                    )}
+                    Sign in with Jellyfin
+                  </Button>
+                </form>
+              )}
+
+              {/* Divider - Show if password auth is available OR during setup OR Jellyfin is enabled */}
+              {((hasPasswordAuth || needsSetup) && (jellyfinAuthEnabled && jellyfinServers.length > 0)) && (
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
                     <span className="w-full border-t" />
@@ -431,11 +590,10 @@ export function Login() {
                     <Label htmlFor="email">Email</Label>
                     <Input
                       id="email"
-                      type="email"
+                      type="text"
                       placeholder="your@email.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      required
                     />
                   </div>
                   <div className="space-y-2">
@@ -446,7 +604,6 @@ export function Login() {
                       placeholder="Your password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      required
                     />
                   </div>
                   <Button type="submit" className="w-full" disabled={localLoading}>
